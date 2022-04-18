@@ -45,11 +45,8 @@ class SearchEngine(context: Context) {
         private const val TAG = "SearchEngine"
 
         const val VISION_API_URL =
-            "https://us-central1-odml-codelabs.cloudfunctions.net/productSearch"
-        const val VISION_API_KEY = ""
-        const val VISION_API_PROJECT_ID = "odml-codelabs"
-        const val VISION_API_LOCATION_ID = "us-east1"
-        const val VISION_API_PRODUCT_SET_ID = "product_set0"
+            "https://vision.googleapis.com/v1"
+        const val VISION_API_KEY = "AIzaSyAgocknz8wGHGOwyWqDDfKOUckggXx_bQ4"
 
         @Throws(Exception::class)
         private fun createRequest(
@@ -60,34 +57,33 @@ class SearchEngine(context: Context) {
                 productList: List<Product>) -> Unit
         ): JsonObjectRequest {
 
-            fun retrieveImages(results: JSONArray) {
+            fun retrieveImages(results: JSONObject) {
                 val productList = ArrayList<Product>()
                 val requestList = ArrayList<JsonObjectRequest>()
-                for (index in 0 until (results).length()) {
-                    val result = results.getJSONObject(index)
-                    val item = (result.get("product") as JSONObject)
-                    val imageId = result.get("image").toString()
+                val description = results.get("webEntities") as JSONArray
+                val url = results.get("visuallySimilarImages") as JSONArray
+                for (index in 0 until (description).length()) {
+                    val title = description.getJSONObject(index).get("description") as String
+                    val image = url.getJSONObject(index).get("url") as String
+                    val subtitle = "Product"
 
-                    val title = (item.get("displayName")).toString()
-                    val subtitle = (item.get("productCategory")).toString()
-
-                    val image_response = object : JsonObjectRequest(
-                            Method.GET,
-                            "$VISION_API_URL/${imageId}?key=$VISION_API_KEY",
-                            null,
-                            { response ->
-                                val image = (response.get("uri")).toString()
-                                    .replace("gs://", "https://storage.googleapis.com/")
-
-                                productList.add(Product(image, title, subtitle))
-                            },
-                            { error -> error }
-                        ) {
-                        override fun getBodyContentType(): String {
-                            return "application/json; charset=utf-8"
-                        }
-                    }
-                    requestList.add(image_response)
+//                    val image_response = object : JsonObjectRequest(
+//                            Method.GET,
+//                        url.getJSONObject(index).get("url") as String,
+//                            null,
+//                            { response ->
+//                                val image = url.getJSONObject(index).get("url") as String
+//
+//                                productList.add(Product(image, title, subtitle))
+//                            },
+//                            { error -> error }
+//                        ) {
+//                        override fun getBodyContentType(): String {
+//                            return "application/json; charset=utf-8"
+//                        }
+//                    }
+                    productList.add(Product(image, title, subtitle))
+//                    requestList.add(image_response)
                 }
                 requestList.forEach({request -> searchRequestQueue.add(request)})
                 Thread.sleep(2500)
@@ -95,6 +91,32 @@ class SearchEngine(context: Context) {
             }
 
             val objectImageData: String = Base64.encodeToString(searchingObject.imageData, Base64.DEFAULT)
+
+//            val requestJson = """
+//            {
+//              "requests": [
+//                {
+//                  "image": {
+//                    "content": """".trimIndent() + objectImageData + """"
+//                  },
+//                  "features": [
+//                    {
+//                      "type": "PRODUCT_SEARCH",
+//                      "maxResults": 4
+//                    }
+//                  ],
+//                  "imageContext": {
+//                    "productSearchParams": {
+//                      "productSet": "projects/${VISION_API_PROJECT_ID}/locations/${VISION_API_LOCATION_ID}/productSets/${VISION_API_PRODUCT_SET_ID}",
+//                      "productCategories": [
+//                           "apparel-v2"
+//                         ]
+//                    }
+//                  }
+//                }
+//              ]
+//            }
+//        """.trimIndent()
 
             val requestJson = """
             {
@@ -105,18 +127,10 @@ class SearchEngine(context: Context) {
                   },
                   "features": [
                     {
-                      "type": "PRODUCT_SEARCH",
+                      "type": "WEB_DETECTION",
                       "maxResults": 4
                     }
-                  ],
-                  "imageContext": {
-                    "productSearchParams": {
-                      "productSet": "projects/${VISION_API_PROJECT_ID}/locations/${VISION_API_LOCATION_ID}/productSets/${VISION_API_PRODUCT_SET_ID}",
-                      "productCategories": [
-                           "apparel-v2"
-                         ]
-                    }
-                  }
+                  ]
                 }
               ]
             }
@@ -128,10 +142,9 @@ class SearchEngine(context: Context) {
                     "$VISION_API_URL/images:annotate?key=$VISION_API_KEY",
                     JSONObject(requestJson),
                     { response ->
-                        val results = (((response.get("responses") as JSONArray)
+                        val results = ((response.get("responses") as JSONArray)
                             .getJSONObject(0)
-                            .get("productSearchResults") as JSONObject)
-                            .get("results") as JSONArray)
+                            .get("webDetection") as JSONObject)
                         retrieveImages(results)
                     },
                     // Return the error
