@@ -8,29 +8,32 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.diploma.slepov.custom.R
+import com.diploma.slepov.custom.processor.ImageRetriever
+import com.diploma.slepov.custom.processor.Product
 
-/** Powers the bottom card carousel for displaying the preview of product search result.  */
-class PreviewCardAdapter(
-    private val searchedObjectList: List<SearchedObject>,
-    private val previewCordClickedListener: (searchedObject: SearchedObject) -> Any
-) : RecyclerView.Adapter<PreviewCardAdapter.CardViewHolder>() {
+/** Класс, содержащий логику представления карточки найденных объектов при статическом режиме детектирования **/
+class ProductCardPreview(
+    private val objectList: List<SearchedObject>,
+    private val clickCoordinator: (searchedObject: SearchedObject) -> Any
+) : RecyclerView.Adapter<ProductCardPreview.CardView>() {
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CardViewHolder {
-        return CardViewHolder(
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CardView {
+        return CardView(
             LayoutInflater.from(parent.context)
-                .inflate(R.layout.products_preview_card, parent, false)
+                .inflate(R.layout.products_card, parent, false)
         )
     }
 
-    override fun onBindViewHolder(holder: CardViewHolder, position: Int) {
-        val searchedObject = searchedObjectList[position]
+    override fun onBindViewHolder(holder: CardView, position: Int) {
+        val searchedObject = objectList[position]
         holder.bindProducts(searchedObject.productList)
-        holder.itemView.setOnClickListener { previewCordClickedListener.invoke(searchedObject) }
+        holder.itemView.setOnClickListener { clickCoordinator.invoke(searchedObject) }
     }
 
-    override fun getItemCount(): Int = searchedObjectList.size
+    override fun getItemCount(): Int = objectList.size
 
-    class CardViewHolder internal constructor(itemView: View) : RecyclerView.ViewHolder(itemView) {
+    /** Вспомогательный класс для отображения карточек продуктов **/
+    class CardView internal constructor(itemView: View) : RecyclerView.ViewHolder(itemView) {
 
         private val imageView: ImageView = itemView.findViewById(R.id.card_image)
         private val titleView: TextView = itemView.findViewById(R.id.card_title)
@@ -47,9 +50,9 @@ class PreviewCardAdapter(
                 imageView.visibility = View.VISIBLE
                 imageView.setImageDrawable(null)
                 if (!TextUtils.isEmpty(topProduct.imageUrl)) {
-                    ImageDownloadTask(imageView, imageSize).execute(topProduct.imageUrl)
+                    ImageRetriever(imageView, imageSize).execute(topProduct.imageUrl)
                 } else {
-                    imageView.setImageResource(R.drawable.logo_google_cloud)
+                    imageView.setImageResource(0)
                 }
                 titleView.text = topProduct.title
                 subtitleView.text = itemView

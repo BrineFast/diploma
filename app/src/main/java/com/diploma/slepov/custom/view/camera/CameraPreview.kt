@@ -11,26 +11,26 @@ import com.diploma.slepov.custom.R
 import com.diploma.slepov.custom.view.Utils
 import java.io.IOException
 
-/** Preview the camera image in the screen.  */
-class CameraSourcePreview(context: Context, attrs: AttributeSet) : FrameLayout(context, attrs) {
+/** Класс отрисовки изображения с камеры **/
+class CameraPreview(context: Context, attrs: AttributeSet) : FrameLayout(context, attrs) {
 
     private val surfaceView: SurfaceView = SurfaceView(context).apply {
         holder.addCallback(SurfaceCallback())
         addView(this)
     }
-    private var graphicOverlay: GraphicOverlay? = null
+    private var Overlay: Overlay? = null
     private var startRequested = false
     private var surfaceAvailable = false
-    private var cameraSource: CameraSource? = null
+    private var cameraSource: Source? = null
     private var cameraPreviewSize: Size? = null
 
     override fun onFinishInflate() {
         super.onFinishInflate()
-        graphicOverlay = findViewById(R.id.camera_preview_graphic_overlay)
+        Overlay = findViewById(R.id.camera_preview_graphic_overlay)
     }
 
     @Throws(IOException::class)
-    fun start(cameraSource: CameraSource) {
+    fun start(cameraSource: Source) {
         this.cameraSource = cameraSource
         startRequested = true
         startIfReady()
@@ -49,7 +49,7 @@ class CameraSourcePreview(context: Context, attrs: AttributeSet) : FrameLayout(c
         if (startRequested && surfaceAvailable) {
             cameraSource?.start(surfaceView.holder)
             requestLayout()
-            graphicOverlay?.let { overlay ->
+            Overlay?.let { overlay ->
                 cameraSource?.let {
                     overlay.setCameraInfo(it)
                 }
@@ -67,24 +67,18 @@ class CameraSourcePreview(context: Context, attrs: AttributeSet) : FrameLayout(c
 
         val previewSizeRatio = cameraPreviewSize?.let { size ->
             if (Utils.isPortraitMode(context)) {
-                // Camera's natural orientation is landscape, so need to swap width and height.
                 size.height.toFloat() / size.width
             } else {
                 size.width.toFloat() / size.height
             }
         } ?: layoutWidth.toFloat() / layoutHeight.toFloat()
 
-        // Match the width of the child view to its parent.
         val childHeight = (layoutWidth / previewSizeRatio).toInt()
         if (childHeight <= layoutHeight) {
             for (i in 0 until childCount) {
                 getChildAt(i).layout(0, 0, layoutWidth, childHeight)
             }
         } else {
-            // When the child view is too tall to be fitted in its parent: If the child view is
-            // static overlay view container (contains views such as bottom prompt chip), we apply
-            // the size of the parent view to it. Otherwise, we offset the top/bottom position
-            // equally to position it in the center of the parent.
             val excessLenInHalf = (childHeight - layoutHeight) / 2
             for (i in 0 until childCount) {
                 val childView = getChildAt(i)

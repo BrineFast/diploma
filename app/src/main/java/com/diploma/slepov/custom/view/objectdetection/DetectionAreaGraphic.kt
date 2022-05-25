@@ -10,18 +10,16 @@ import android.graphics.PorterDuffXfermode
 import android.graphics.Shader.TileMode
 import androidx.annotation.ColorInt
 import androidx.core.content.ContextCompat
-import com.diploma.slepov.custom.view.camera.GraphicOverlay
-import com.diploma.slepov.custom.view.camera.GraphicOverlay.Graphic
+import com.diploma.slepov.custom.view.camera.Overlay
+import com.diploma.slepov.custom.view.camera.Overlay.Graphic
 import com.diploma.slepov.custom.R
 import com.google.mlkit.vision.objects.DetectedObject
 
-/**
- * Draws the detected visionObject info over the camera preview for prominent visionObject detection mode.
- */
-internal class ObjectGraphicInProminentMode(
-    overlay: GraphicOverlay,
+/** Класс для анимирования области детектирования объекта **/
+internal class DetectionAreaGraphic(
+    overlay: Overlay,
     private val visionObject: DetectedObject,
-    private val confirmationController: ObjectConfirmationController
+    private val confirmationController: ConfirmationController
 ) : Graphic(overlay) {
 
     private val scrimPaint: Paint = Paint()
@@ -36,8 +34,7 @@ internal class ObjectGraphicInProminentMode(
     private val boxCornerRadius: Int
 
     init {
-        // Sets up a gradient background color at vertical.
-        scrimPaint.shader = if (confirmationController.isConfirmed) {
+        scrimPaint.shader = if (confirmationController.confirmed) {
             LinearGradient(
                 0f,
                 0f,
@@ -68,7 +65,7 @@ internal class ObjectGraphicInProminentMode(
             strokeWidth = context
                 .resources
                 .getDimensionPixelOffset(
-                    if (confirmationController.isConfirmed) {
+                    if (confirmationController.confirmed) {
                         R.dimen.bounding_box_confirmed_stroke_width
                     } else {
                         R.dimen.bounding_box_stroke_width
@@ -85,12 +82,10 @@ internal class ObjectGraphicInProminentMode(
     override fun draw(canvas: Canvas) {
         val rect = overlay.translateRect(visionObject.boundingBox)
 
-        // Draws the dark background scrim and leaves the visionObject area clear.
         canvas.drawRect(0f, 0f, canvas.width.toFloat(), canvas.height.toFloat(), scrimPaint)
         canvas.drawRoundRect(rect, boxCornerRadius.toFloat(), boxCornerRadius.toFloat(), eraserPaint)
 
-        // Draws the bounding box with a gradient border color at vertical.
-        boxPaint.shader = if (confirmationController.isConfirmed) {
+        boxPaint.shader = if (confirmationController.confirmed) {
             null
         } else {
             LinearGradient(

@@ -2,45 +2,37 @@ package com.diploma.slepov.custom.processor
 
 import android.content.Context
 import android.util.Base64
-import android.util.Log
-import com.android.volley.Request
 import com.android.volley.RequestQueue
-import com.android.volley.Response
 import com.android.volley.toolbox.JsonObjectRequest
-import com.android.volley.toolbox.StringRequest
 import com.android.volley.toolbox.Volley
-import com.diploma.slepov.custom.view.objectdetection.DetectedObjectInfo
-import com.diploma.slepov.custom.view.productsearch.Product
+import com.diploma.slepov.custom.view.objectdetection.DetectedInfo
 import com.google.android.gms.tasks.Tasks
-import com.google.gson.Gson
 import org.json.JSONArray
 import org.json.JSONObject
-import java.lang.reflect.Method
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-
-/** A fake search engine to help simulate the complete work flow.  */
+/** Класс поиска изображений **/
 class SearchEngine(context: Context) {
 
-    private val searchRequestQueue: RequestQueue = Volley.newRequestQueue(context)
-    private val requestCreationExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val searchQueue: RequestQueue = Volley.newRequestQueue(context)
+    private val executor: ExecutorService = Executors.newSingleThreadExecutor()
 
     fun search(
-        detectedObject: DetectedObjectInfo,
-        listener: (detectedObject: DetectedObjectInfo, productList: List<Product>) -> Unit
+            detectedObject: DetectedInfo,
+            listener: (detectedObject: DetectedInfo, productList: List<Product>) -> Unit
     ) {
-        // Crops the object image out of the full image is expensive, so do it off the UI thread.
-        Tasks.call<JsonObjectRequest>(requestCreationExecutor, Callable { createRequest(detectedObject, searchRequestQueue, listener) })
-            .addOnSuccessListener { productRequest -> searchRequestQueue.add(productRequest) }
+        Tasks.call<JsonObjectRequest>(executor, Callable { createRequest(detectedObject, searchQueue, listener) })
+            .addOnSuccessListener { productRequest -> searchQueue.add(productRequest) }
     }
 
     fun shutdown() {
-        searchRequestQueue.cancelAll(TAG)
-        requestCreationExecutor.shutdown()
+        searchQueue.cancelAll(TAG)
+        executor.shutdown()
     }
 
+    /** Отправка полученных изображений на сервер и обработка ответа **/
     companion object {
         private const val TAG = "SearchEngine"
 
@@ -50,11 +42,11 @@ class SearchEngine(context: Context) {
 
         @Throws(Exception::class)
         private fun createRequest(
-            searchingObject: DetectedObjectInfo,
-            searchRequestQueue: RequestQueue,
-            listener: (
-                detectedObject: DetectedObjectInfo,
-                productList: List<Product>) -> Unit
+                searchingObject: DetectedInfo,
+                searchQueue: RequestQueue,
+                listener: (
+                        detectedObject: DetectedInfo,
+                        productList: List<Product>) -> Unit
         ): JsonObjectRequest {
 
             fun retrieveImages(results: JSONObject) {
@@ -66,57 +58,14 @@ class SearchEngine(context: Context) {
                     val title = description.getJSONObject(index).get("description") as String
                     val image = url.getJSONObject(index).get("url") as String
                     val subtitle = "Product"
-
-//                    val image_response = object : JsonObjectRequest(
-//                            Method.GET,
-//                        url.getJSONObject(index).get("url") as String,
-//                            null,
-//                            { response ->
-//                                val image = url.getJSONObject(index).get("url") as String
-//
-//                                productList.add(Product(image, title, subtitle))
-//                            },
-//                            { error -> error }
-//                        ) {
-//                        override fun getBodyContentType(): String {
-//                            return "application/json; charset=utf-8"
-//                        }
-//                    }
                     productList.add(Product(image, title, subtitle))
-//                    requestList.add(image_response)
                 }
-                requestList.forEach({request -> searchRequestQueue.add(request)})
+                requestList.forEach({request -> searchQueue.add(request)})
                 Thread.sleep(2500)
                 listener.invoke(searchingObject, productList)
             }
 
             val objectImageData: String = Base64.encodeToString(searchingObject.imageData, Base64.DEFAULT)
-
-//            val requestJson = """
-//            {
-//              "requests": [
-//                {
-//                  "image": {
-//                    "content": """".trimIndent() + objectImageData + """"
-//                  },
-//                  "features": [
-//                    {
-//                      "type": "PRODUCT_SEARCH",
-//                      "maxResults": 4
-//                    }
-//                  ],
-//                  "imageContext": {
-//                    "productSearchParams": {
-//                      "productSet": "projects/${VISION_API_PROJECT_ID}/locations/${VISION_API_LOCATION_ID}/productSets/${VISION_API_PRODUCT_SET_ID}",
-//                      "productCategories": [
-//                           "apparel-v2"
-//                         ]
-//                    }
-//                  }
-//                }
-//              ]
-//            }
-//        """.trimIndent()
 
             val requestJson = """
             {
@@ -147,7 +96,6 @@ class SearchEngine(context: Context) {
                             .get("webDetection") as JSONObject)
                         retrieveImages(results)
                     },
-                    // Return the error
                     { error -> error }
                 ) {
                 override fun getBodyContentType() = "application/json"

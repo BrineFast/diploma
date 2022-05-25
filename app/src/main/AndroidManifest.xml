@@ -43,7 +43,7 @@
     </activity>
 
     <activity
-        android:name="com.diploma.slepov.custom.DefaultDetectionActivity"
+        android:name="com.diploma.slepov.custom.StaticDetectionActivity"
         android:screenOrientation="portrait">
     </activity>
 

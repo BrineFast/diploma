@@ -9,34 +9,35 @@ import android.view.View
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import com.diploma.slepov.custom.R
 
-/** Represents a detected object by drawing a circle dot at the center of object's bounding box.  */
-class StaticObjectDotView @JvmOverloads constructor(context: Context, selected: Boolean = false) : View(context) {
+/** Класс отрисовки точек на найденных объектах в статическом режиме **/
+class DotView @JvmOverloads constructor(context: Context, selected: Boolean = false) : View(context) {
 
     private val paint: Paint = Paint().apply {
         style = Paint.Style.FILL
     }
-    private val unselectedDotRadius: Int =
+    private val dotRadius: Int =
         context.resources.getDimensionPixelOffset(R.dimen.static_image_dot_radius_unselected)
-    private val radiusOffsetRange: Int
+    private val offset: Int
 
     private var currentRadiusOffset: Float = 0.toFloat()
 
     init {
         val selectedDotRadius = context.resources.getDimensionPixelOffset(R.dimen.static_image_dot_radius_selected)
-        radiusOffsetRange = selectedDotRadius - unselectedDotRadius
-        currentRadiusOffset = (if (selected) radiusOffsetRange else 0).toFloat()
+        offset = selectedDotRadius - dotRadius
+        currentRadiusOffset = (if (selected) offset else 0).toFloat()
     }
 
-    fun playAnimationWithSelectedState(selected: Boolean) {
+    /** Анимация нажатия на точку **/
+    fun selectedAnimation(selected: Boolean) {
         val radiusOffsetAnimator: ValueAnimator =
             if (selected) {
-                ValueAnimator.ofFloat(0f, radiusOffsetRange.toFloat())
-                    .setDuration(DOT_SELECTION_ANIMATOR_DURATION_MS).apply {
-                        startDelay = DOT_DESELECTION_ANIMATOR_DURATION_MS
+                ValueAnimator.ofFloat(0f, offset.toFloat())
+                    .setDuration(110).apply {
+                        startDelay = 70
                     }
             } else {
-                ValueAnimator.ofFloat(radiusOffsetRange.toFloat(), 0f)
-                    .setDuration(DOT_DESELECTION_ANIMATOR_DURATION_MS)
+                ValueAnimator.ofFloat(offset.toFloat(), 0f)
+                    .setDuration(70)
             }
 
         radiusOffsetAnimator.interpolator = FastOutSlowInInterpolator()
@@ -47,16 +48,12 @@ class StaticObjectDotView @JvmOverloads constructor(context: Context, selected: 
         radiusOffsetAnimator.start()
     }
 
+    /** Отрисовка точек **/
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val cx = width / 2f
         val cy = height / 2f
         paint.color = Color.WHITE
-        canvas.drawCircle(cx, cy, unselectedDotRadius + currentRadiusOffset, paint)
-    }
-
-    companion object {
-        private const val DOT_SELECTION_ANIMATOR_DURATION_MS: Long = 116
-        private const val DOT_DESELECTION_ANIMATOR_DURATION_MS: Long = 67
+        canvas.drawCircle(cx, cy, dotRadius + currentRadiusOffset, paint)
     }
 }

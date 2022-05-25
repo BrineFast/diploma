@@ -1,4 +1,4 @@
-package com.diploma.slepov.custom.view.productsearch
+package com.diploma.slepov.custom.processor
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -8,9 +8,8 @@ import android.util.Log
 import android.widget.ImageView
 import java.net.URL
 
-/** todo: migrate to Coroutines. */
-/** Async task to download the image and then feed into the provided image view.  */
-internal class ImageDownloadTask(private val imageView: ImageView, private val maxImageWidth: Int) :
+/** Класс для логики скачивания найденных изображений  **/
+internal class ImageRetriever(private val imageView: ImageView, private val maxImageWidth: Int) :
     AsyncTask<String, Void, Bitmap>() {
 
     override fun doInBackground(vararg urls: String): Bitmap? {
@@ -23,9 +22,7 @@ internal class ImageDownloadTask(private val imageView: ImageView, private val m
             val inputStream = URL(urls[0]).openStream()
             bitmap = BitmapFactory.decodeStream(inputStream)
             inputStream.close()
-        } catch (e: Exception) {
-            Log.e(TAG, "Image download failed: ${urls[0]}")
-        }
+        } catch (e: Exception) {}
 
         if (bitmap != null && bitmap.width > maxImageWidth) {
             val dstHeight = (maxImageWidth.toFloat() / bitmap.width * bitmap.height).toInt()
@@ -38,9 +35,5 @@ internal class ImageDownloadTask(private val imageView: ImageView, private val m
         result?.let {
             imageView.setImageBitmap(result)
         }
-    }
-
-    companion object {
-        private const val TAG = "ImageDownloadTask"
     }
 }

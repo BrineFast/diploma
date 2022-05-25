@@ -2,7 +2,7 @@
 <merge xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-  <com.diploma.slepov.custom.view.camera.GraphicOverlay
+  <com.diploma.slepov.custom.view.camera.Overlay
       android:id="@+id/camera_preview_graphic_overlay"
       android:layout_width="match_parent"
       android:layout_height="match_parent"/>
@@ -52,7 +52,7 @@
         android:textColor="@color/black"
         android:textSize="@dimen/search_button_text_size"
         android:visibility="gone"
-        app:icon="@drawable/ic_image_search_vd_black_24"
+        app:icon="@drawable/search_button"
         app:iconTint="@color/black"/>
   </FrameLayout>
 

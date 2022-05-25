@@ -22,7 +22,7 @@ import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat.checkSelfPermission
 import androidx.exifinterface.media.ExifInterface
-import com.diploma.slepov.custom.view.camera.CameraSizePair
+import com.diploma.slepov.custom.view.camera.SizePair
 import com.google.mlkit.vision.common.InputImage
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -31,20 +31,11 @@ import java.nio.ByteBuffer
 import java.util.ArrayList
 import kotlin.math.abs
 
-/** Utility class to provide helper methods.  */
+/** Вспомогательные методы, использующиеся во всех модулях  **/
 object Utils {
 
-    /**
-     * If the absolute difference between aspect ratios is less than this tolerance, they are
-     * considered to be the same aspect ratio.
-     */
-    const val ASPECT_RATIO_TOLERANCE = 0.01f
-
-    internal const val REQUEST_CODE_PHOTO_LIBRARY = 1
-
-    private const val TAG = "Utils"
-
-    internal fun requestRuntimePermissions(activity: Activity) {
+    /** Запрос необходимых приложению прав при запуске **/
+    internal fun requestPermissions(activity: Activity) {
 
         val allNeededPermissions = getRequiredPermissions(activity).filter {
             checkSelfPermission(activity, it) != PackageManager.PERMISSION_GRANTED
@@ -57,11 +48,13 @@ object Utils {
         }
     }
 
-    internal fun allPermissionsGranted(context: Context): Boolean = getRequiredPermissions(
+    /** Проверка всех необходимых прав **/
+    internal fun permissionsGranted(context: Context): Boolean = getRequiredPermissions(
         context
     )
         .all { checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
 
+    /** Вспомогательный метод для проверки прав **/
     private fun getRequiredPermissions(context: Context): Array<String> {
         return try {
             val info = context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_PERMISSIONS)
@@ -72,66 +65,50 @@ object Utils {
         }
     }
 
+    /** Проверка ориентации экрана **/
     fun isPortraitMode(context: Context): Boolean =
         context.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
 
-    /**
-     * Generates a list of acceptable preview sizes. Preview sizes are not acceptable if there is not
-     * a corresponding picture size of the same aspect ratio. If there is a corresponding picture size
-     * of the same aspect ratio, the picture size is paired up with the preview size.
-     *
-     *
-     * This is necessary because even if we don't use still pictures, the still picture size must
-     * be set to a size that is the same aspect ratio as the preview size we choose. Otherwise, the
-     * preview images may be distorted on some devices.
-     */
-    fun generateValidPreviewSizeList(camera: Camera): List<CameraSizePair> {
+    /** Получение возможных размеров и соотношений сторон экрана предварительного просмотра в динамическом режиме **/
+    fun makeValidPreviewSize(camera: Camera): List<SizePair> {
         val parameters = camera.parameters
         val supportedPreviewSizes = parameters.supportedPreviewSizes
         val supportedPictureSizes = parameters.supportedPictureSizes
-        val validPreviewSizes = ArrayList<CameraSizePair>()
+        val validPreviewSizes = ArrayList<SizePair>()
         for (previewSize in supportedPreviewSizes) {
             val previewAspectRatio = previewSize.width.toFloat() / previewSize.height.toFloat()
 
-            // By looping through the picture sizes in order, we favor the higher resolutions.
-            // We choose the highest resolution in order to support taking the full resolution
-            // picture later.
             for (pictureSize in supportedPictureSizes) {
                 val pictureAspectRatio = pictureSize.width.toFloat() / pictureSize.height.toFloat()
-                if (abs(previewAspectRatio - pictureAspectRatio) < ASPECT_RATIO_TOLERANCE) {
-                    validPreviewSizes.add(CameraSizePair(previewSize, pictureSize))
+                if (abs(previewAspectRatio - pictureAspectRatio) < 0.01f) {
+                    validPreviewSizes.add(SizePair(previewSize, pictureSize))
                     break
                 }
             }
         }
-
-        // If there are no picture sizes with the same aspect ratio as any preview sizes, allow all of
-        // the preview sizes and hope that the camera can handle it.  Probably unlikely, but we still
-        // account for it.
         if (validPreviewSizes.isEmpty()) {
-            Log.w(TAG, "No preview sizes have a corresponding same-aspect-ratio picture size.")
             for (previewSize in supportedPreviewSizes) {
-                // The null picture size will let us know that we shouldn't set a picture size.
-                validPreviewSizes.add(CameraSizePair(previewSize, null))
+                validPreviewSizes.add(SizePair(previewSize, null))
             }
         }
 
         return validPreviewSizes
     }
 
-    fun getCornerRoundedBitmap(srcBitmap: Bitmap, cornerRadius: Int): Bitmap {
-        val dstBitmap = Bitmap.createBitmap(srcBitmap.width, srcBitmap.height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(dstBitmap)
+    /** Закругление краев изображений **/
+    fun roundImageCorners(srcBitmap: Bitmap, cornerRadius: Int): Bitmap {
+        val bitmap = Bitmap.createBitmap(srcBitmap.width, srcBitmap.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
         val paint = Paint()
         paint.isAntiAlias = true
         val rectF = RectF(0f, 0f, srcBitmap.width.toFloat(), srcBitmap.height.toFloat())
         canvas.drawRoundRect(rectF, cornerRadius.toFloat(), cornerRadius.toFloat(), paint)
         paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
         canvas.drawBitmap(srcBitmap, 0f, 0f, paint)
-        return dstBitmap
+        return bitmap
     }
 
-    /** Convert NV21 format byte buffer to bitmap. */
+    /** Метод для перевода изображения в BitMap **/
     fun convertToBitmap(data: ByteBuffer, width: Int, height: Int, rotationDegrees: Int): Bitmap? {
         data.rewind()
         val imageInBuffer = ByteArray(data.limit())
@@ -145,23 +122,22 @@ object Utils {
             val bmp = BitmapFactory.decodeByteArray(stream.toByteArray(), 0, stream.size())
             stream.close()
 
-            // Rotate the image back to straight.
             val matrix = Matrix()
             matrix.postRotate(rotationDegrees.toFloat())
             return Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, matrix, true)
-        } catch (e: java.lang.Exception) {
-            Log.e(TAG, "Error: " + e.message)
-        }
+        } catch (e: java.lang.Exception) { }
         return null
     }
 
-    internal fun openImagePicker(activity: Activity) {
+    /** Открытие внутреннего хранилища для выбора изображения в статическом режиме **/
+    internal fun openInternalStorage(activity: Activity) {
         val intent = Intent(Intent.ACTION_GET_CONTENT)
         intent.addCategory(Intent.CATEGORY_OPENABLE)
         intent.type = "image/*"
-        activity.startActivityForResult(intent, REQUEST_CODE_PHOTO_LIBRARY)
+        activity.startActivityForResult(intent, 1)
     }
 
+    /** Загрузить найденное изображение **/
     @Throws(IOException::class)
     internal fun loadImage(context: Context, imageUri: Uri, maxImageDimension: Int): Bitmap? {
         var inputStreamForSize: InputStream? = null
@@ -177,7 +153,7 @@ object Utils {
             opts.inSampleSize = inSampleSize
             inputStreamForImage = context.contentResolver.openInputStream(imageUri)
             val decodedBitmap = BitmapFactory.decodeStream(inputStreamForImage, null, opts)/* outPadding= */
-            return maybeTransformBitmap(
+            return bitmapTransform(
                 context.contentResolver,
                 imageUri,
                 decodedBitmap
@@ -188,11 +164,11 @@ object Utils {
         }
     }
 
-    private fun maybeTransformBitmap(resolver: ContentResolver, uri: Uri, bitmap: Bitmap?): Bitmap? {
-        val matrix: Matrix? = when (getExifOrientationTag(resolver, uri)) {
-            ExifInterface.ORIENTATION_UNDEFINED, ExifInterface.ORIENTATION_NORMAL ->
-                // Set the matrix to be null to skip the image transform.
-                null
+    /** Всопомогательный метод для перевода изображения в BitMap.
+     * Используется для приведения всех полученных изображений к одинаковому размеру и соотношению сторон **/
+    private fun bitmapTransform(resolver: ContentResolver, uri: Uri, bitmap: Bitmap?): Bitmap? {
+        val matrix: Matrix? = when (getCurrentOrientation(resolver, uri)) {
+            ExifInterface.ORIENTATION_UNDEFINED, ExifInterface.ORIENTATION_NORMAL -> null
             ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> Matrix().apply { postScale(-1.0f, 1.0f) }
 
             ExifInterface.ORIENTATION_ROTATE_90 -> Matrix().apply { postRotate(90f) }
@@ -204,9 +180,7 @@ object Utils {
                 postRotate(-90.0f)
                 postScale(-1.0f, 1.0f)
             }
-            else ->
-                // Set the matrix to be null to skip the image transform.
-                null
+            else -> null
         }
 
         return if (matrix != null) {
@@ -216,17 +190,15 @@ object Utils {
         }
     }
 
-    private fun getExifOrientationTag(resolver: ContentResolver, imageUri: Uri): Int {
+    /** Вспомогательный метод для получения текущей ориентации полученного изображения **/
+    private fun getCurrentOrientation(resolver: ContentResolver, imageUri: Uri): Int {
         if (ContentResolver.SCHEME_CONTENT != imageUri.scheme && ContentResolver.SCHEME_FILE != imageUri.scheme) {
             return 0
         }
-
         var exif: ExifInterface? = null
         try {
             resolver.openInputStream(imageUri)?.use { inputStream -> exif = ExifInterface(inputStream) }
-        } catch (e: IOException) {
-            Log.e(TAG, "Failed to open file to read rotation meta data: $imageUri", e)
-        }
+        } catch (e: IOException) {}
 
         return if (exif != null) {
             exif!!.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)

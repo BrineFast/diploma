@@ -12,8 +12,8 @@ import androidx.core.content.ContextCompat
 import com.google.common.base.Preconditions.checkArgument
 import com.diploma.slepov.custom.R
 
-/** Draws the scrim of bottom sheet with object thumbnail highlighted.  */
-class BottomSheetScrimView(context: Context, attrs: AttributeSet) : View(context, attrs) {
+/** Класс для отрисовка списка найденных продуктов при динамичном режиме детектирования **/
+class ScrimView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     private val scrimPaint: Paint
     private val thumbnailPaint: Paint
@@ -22,9 +22,9 @@ class BottomSheetScrimView(context: Context, attrs: AttributeSet) : View(context
     private val thumbnailMargin: Int
     private val boxCornerRadius: Int
 
-    private var thumbnailBitmap: Bitmap? = null
-    private var thumbnailRect: RectF? = null
-    private var downPercentInCollapsed: Float = 0f
+    private var bitmap: Bitmap? = null
+    private var rect: RectF? = null
+    private var collapsedPercent: Float = 0f
 
     init {
         val resources = context.resources
@@ -45,30 +45,26 @@ class BottomSheetScrimView(context: Context, attrs: AttributeSet) : View(context
         boxCornerRadius = resources.getDimensionPixelOffset(R.dimen.bounding_box_corner_radius)
     }
 
-    /**
-     * Translates the object thumbnail up or down along with bottom sheet's sliding movement, with
-     * keeping thumbnail size fixed.
-     */
     fun updateWithThumbnailTranslate(
-        thumbnailBitmap: Bitmap,
+        bitmap: Bitmap,
         collapsedStateHeight: Int,
         slideOffset: Float,
         bottomSheet: View
     ) {
-        this.thumbnailBitmap = thumbnailBitmap
+        this.bitmap = bitmap
 
         val currentSheetHeight: Float
         if (slideOffset < 0) {
-            downPercentInCollapsed = -slideOffset
+            collapsedPercent = -slideOffset
             currentSheetHeight = collapsedStateHeight * (1 + slideOffset)
         } else {
-            downPercentInCollapsed = 0f
+            collapsedPercent = 0f
             currentSheetHeight = collapsedStateHeight + (bottomSheet.height - collapsedStateHeight) * slideOffset
         }
 
-        thumbnailRect = RectF().apply {
+        rect = RectF().apply {
             val thumbnailWidth =
-                thumbnailBitmap.width.toFloat() / thumbnailBitmap.height.toFloat() * thumbnailHeight.toFloat()
+                bitmap.width.toFloat() / bitmap.height.toFloat() * thumbnailHeight.toFloat()
             left = thumbnailMargin.toFloat()
             top = height.toFloat() - currentSheetHeight - thumbnailMargin.toFloat() - thumbnailHeight.toFloat()
             right = left + thumbnailWidth
@@ -78,39 +74,31 @@ class BottomSheetScrimView(context: Context, attrs: AttributeSet) : View(context
         invalidate()
     }
 
-    /**
-     * Translates the object thumbnail from original bounding box location to at where the bottom
-     * sheet is settled as COLLAPSED state, with its size scales gradually.
-     *
-     *
-     * It's only used by sliding the sheet up from hidden state to collapsed state.
-     */
     fun updateWithThumbnailTranslateAndScale(
-        thumbnailBitmap: Bitmap,
+        bitmap: Bitmap,
         collapsedStateHeight: Int,
         slideOffset: Float,
-        srcThumbnailRect: RectF
+        srcrect: RectF
     ) {
         checkArgument(
-            slideOffset <= 0,
-            "Scale mode works only when the sheet is between hidden and collapsed states."
+            slideOffset <= 0
         )
 
-        this.thumbnailBitmap = thumbnailBitmap
-        this.downPercentInCollapsed = 0f
+        this.bitmap = bitmap
+        this.collapsedPercent = 0f
 
-        thumbnailRect = RectF().apply {
+        rect = RectF().apply {
             val dstX = thumbnailMargin.toFloat()
             val dstY = (height - collapsedStateHeight - thumbnailMargin - thumbnailHeight).toFloat()
             val dstHeight = thumbnailHeight.toFloat()
-            val dstWidth = srcThumbnailRect.width() / srcThumbnailRect.height() * dstHeight
+            val dstWidth = srcrect.width() / srcrect.height() * dstHeight
             val dstRect = RectF(dstX, dstY, dstX + dstWidth, dstY + dstHeight)
 
             val progressToCollapsedState = 1 + slideOffset
-            left = srcThumbnailRect.left + (dstRect.left - srcThumbnailRect.left) * progressToCollapsedState
-            top = srcThumbnailRect.top + (dstRect.top - srcThumbnailRect.top) * progressToCollapsedState
-            right = srcThumbnailRect.right + (dstRect.right - srcThumbnailRect.right) * progressToCollapsedState
-            bottom = srcThumbnailRect.bottom + (dstRect.bottom - srcThumbnailRect.bottom) * progressToCollapsedState
+            left = srcrect.left + (dstRect.left - srcrect.left) * progressToCollapsedState
+            top = srcrect.top + (dstRect.top - srcrect.top) * progressToCollapsedState
+            right = srcrect.right + (dstRect.right - srcrect.right) * progressToCollapsedState
+            bottom = srcrect.bottom + (dstRect.bottom - srcrect.bottom) * progressToCollapsedState
         }
 
         invalidate()
@@ -119,24 +107,17 @@ class BottomSheetScrimView(context: Context, attrs: AttributeSet) : View(context
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        // Draws the dark background.
-        val bitmap = thumbnailBitmap ?: return
-        val rect = thumbnailRect ?: return
+        val bitmap = bitmap ?: return
+        val rect = rect ?: return
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), scrimPaint)
-        if (downPercentInCollapsed < DOWN_PERCENT_TO_HIDE_THUMBNAIL) {
-            val alpha = ((1 - downPercentInCollapsed / DOWN_PERCENT_TO_HIDE_THUMBNAIL) * 255).toInt()
+        if (collapsedPercent < 0.42f) {
+            val alpha = ((1 - collapsedPercent / 0.42f) * 255).toInt()
 
-            // Draws the object thumbnail.
             thumbnailPaint.alpha = alpha
             canvas.drawBitmap(bitmap, null, rect, thumbnailPaint)
 
-            // Draws the bounding box.
             boxPaint.alpha = alpha
             canvas.drawRoundRect(rect, boxCornerRadius.toFloat(), boxCornerRadius.toFloat(), boxPaint)
         }
-    }
-
-    companion object {
-        private const val DOWN_PERCENT_TO_HIDE_THUMBNAIL = 0.42f
     }
 }

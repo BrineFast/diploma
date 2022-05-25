@@ -3,16 +3,13 @@ package com.diploma.slepov.custom.view.objectdetection
 import android.graphics.Bitmap
 import android.graphics.Bitmap.CompressFormat
 import android.graphics.Rect
-import android.util.Log
 import com.diploma.slepov.custom.InputInfo
 import com.google.mlkit.vision.objects.DetectedObject
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 
-/**
- * Holds the detected object and its related image info.
- */
-class DetectedObjectInfo(
+/** Класс для хранения информации об найденном объекте и его изображении **/
+class DetectedInfo(
     private val detectedObject: DetectedObject,
     val objectIndex: Int,
     private val inputInfo: InputInfo
@@ -24,12 +21,13 @@ class DetectedObjectInfo(
     val objectId: Int? = detectedObject.trackingId
     val boundingBox: Rect = detectedObject.boundingBox
 
+    /** Перевод изображени в последовательность байтов из BitMap для дальнейшей передачи **/
     val imageData: ByteArray?
         @Synchronized get() {
             if (jpegBytes == null) {
                 try {
                     ByteArrayOutputStream().use { stream ->
-                        getBitmap().compress(CompressFormat.JPEG, /* quality= */ 100, stream)
+                        getBitmap().compress(CompressFormat.JPEG, 100, stream)
                         jpegBytes = stream.toByteArray()
                     }
                 } catch (e: IOException) {
@@ -39,6 +37,7 @@ class DetectedObjectInfo(
             return jpegBytes
         }
 
+    /** Метод для перевода изображения в BitMap **/
     @Synchronized
     fun getBitmap(): Bitmap {
         return bitmap ?: let {

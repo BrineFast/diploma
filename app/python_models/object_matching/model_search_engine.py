@@ -30,7 +30,7 @@ class Model:
                                               batch_size=25,
                                               num_workers=0)
         self._train(batch_loader)
-        self._test()
+        self._update_index()
 
     def _prepare_model(self) -> NoReturn:
         for param in self._model.parameters():
@@ -64,7 +64,7 @@ class Model:
 
         return inf_list
 
-    def _test(self) -> NoReturn:
+    def _update_index(self) -> NoReturn:
         excluded: dict = dict()
 
         for img_hash in tqdm(self.indexes):

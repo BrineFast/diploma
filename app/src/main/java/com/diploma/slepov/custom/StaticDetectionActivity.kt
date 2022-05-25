@@ -23,12 +23,12 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.chip.Chip
 import com.google.common.collect.ImmutableList
-import com.diploma.slepov.custom.view.productsearch.BottomSheetScrimView
-import com.diploma.slepov.custom.view.objectdetection.DetectedObjectInfo
-import com.diploma.slepov.custom.view.objectdetection.StaticObjectDotView
-import com.diploma.slepov.custom.view.productsearch.PreviewCardAdapter
-import com.diploma.slepov.custom.view.productsearch.Product
-import com.diploma.slepov.custom.view.productsearch.ProductAdapter
+import com.diploma.slepov.custom.view.productsearch.ScrimView
+import com.diploma.slepov.custom.view.objectdetection.DetectedInfo
+import com.diploma.slepov.custom.view.objectdetection.DotView
+import com.diploma.slepov.custom.view.productsearch.ProductCardPreview
+import com.diploma.slepov.custom.processor.Product
+import com.diploma.slepov.custom.view.productsearch.ProductRepresentation
 import com.diploma.slepov.custom.processor.SearchEngine
 import com.diploma.slepov.custom.view.Utils
 import com.diploma.slepov.custom.view.productsearch.SearchedObject
@@ -41,7 +41,8 @@ import java.io.IOException
 import java.lang.NullPointerException
 import java.util.TreeMap
 
-class DefaultDetectionActivity : AppCompatActivity(), View.OnClickListener {
+/** Класс для модуля поиска объектов при детектировании в статическом режиме **/
+class StaticDetectionActivity : AppCompatActivity(), View.OnClickListener {
 
     private val searchedObjectMap = TreeMap<Int, SearchedObject>()
 
@@ -52,7 +53,7 @@ class DefaultDetectionActivity : AppCompatActivity(), View.OnClickListener {
     private var dotViewContainer: ViewGroup? = null
 
     private var bottomSheetBehavior: BottomSheetBehavior<View>? = null
-    private var bottomSheetScrimView: BottomSheetScrimView? = null
+    private var bottomSheetScrimView: ScrimView? = null
     private var bottomSheetTitleView: TextView? = null
     private var productRecyclerView: RecyclerView? = null
 
@@ -70,10 +71,10 @@ class DefaultDetectionActivity : AppCompatActivity(), View.OnClickListener {
 
         searchEngine = SearchEngine(applicationContext)
 
-        setContentView(R.layout.activity_static_object)
+        setContentView(R.layout.static_detection_view)
 
         loadingView = findViewById<View>(R.id.loading_view).apply {
-            setOnClickListener(this@DefaultDetectionActivity)
+            setOnClickListener(this@StaticDetectionActivity)
         }
 
         bottomPromptChip = findViewById(R.id.bottom_prompt_chip)
@@ -81,7 +82,7 @@ class DefaultDetectionActivity : AppCompatActivity(), View.OnClickListener {
 
         previewCardCarousel = findViewById<RecyclerView>(R.id.card_recycler_view).apply {
             setHasFixedSize(true)
-            layoutManager = LinearLayoutManager(this@DefaultDetectionActivity, RecyclerView.HORIZONTAL, false)
+            layoutManager = LinearLayoutManager(this@StaticDetectionActivity, RecyclerView.HORIZONTAL, false)
             addItemDecoration(
                 CardItemDecoration(
                     resources
@@ -117,7 +118,7 @@ class DefaultDetectionActivity : AppCompatActivity(), View.OnClickListener {
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (requestCode == Utils.REQUEST_CODE_PHOTO_LIBRARY && resultCode == Activity.RESULT_OK) {
+        if (requestCode == 1 && resultCode == Activity.RESULT_OK) {
             data?.data?.let(::detectObjects)
         } else {
             super.onActivityResult(requestCode, resultCode, data)
@@ -135,7 +136,7 @@ class DefaultDetectionActivity : AppCompatActivity(), View.OnClickListener {
     override fun onClick(view: View) {
         when (view.id) {
             R.id.close_button -> onBackPressed()
-            R.id.photo_library_button -> Utils.openImagePicker(this)
+            R.id.photo_library_button -> Utils.openInternalStorage(this)
             R.id.bottom_sheet_scrim_view -> bottomSheetBehavior?.state = BottomSheetBehavior.STATE_HIDDEN
         }
     }
@@ -143,7 +144,7 @@ class DefaultDetectionActivity : AppCompatActivity(), View.OnClickListener {
     private fun showSearchResults(searchedObject: SearchedObject) {
         searchedObjectForBottomSheet = searchedObject
         val productList = searchedObject.productList
-        productRecyclerView?.adapter = ProductAdapter(productList)
+        productRecyclerView?.adapter = ProductRepresentation(productList)
         bottomSheetBehavior?.peekHeight = (inputImageView?.parent as View).height / 2
         bottomSheetBehavior?.state = BottomSheetBehavior.STATE_COLLAPSED
     }
@@ -177,22 +178,22 @@ class DefaultDetectionActivity : AppCompatActivity(), View.OnClickListener {
             state = BottomSheetBehavior.STATE_HIDDEN
         }
 
-        bottomSheetScrimView = findViewById<BottomSheetScrimView>(R.id.bottom_sheet_scrim_view).apply {
-            setOnClickListener(this@DefaultDetectionActivity)
+        bottomSheetScrimView = findViewById<ScrimView>(R.id.bottom_sheet_scrim_view).apply {
+            setOnClickListener(this@StaticDetectionActivity)
         }
 
         bottomSheetTitleView = findViewById(R.id.bottom_sheet_title)
         productRecyclerView = findViewById<RecyclerView>(R.id.product_recycler_view)?.apply {
             setHasFixedSize(true)
-            layoutManager = LinearLayoutManager(this@DefaultDetectionActivity)
-            adapter = ProductAdapter(ImmutableList.of())
+            layoutManager = LinearLayoutManager(this@StaticDetectionActivity)
+            adapter = ProductRepresentation(ImmutableList.of())
         }
     }
 
     private fun detectObjects(imageUri: Uri) {
         inputImageView?.setImageDrawable(null)
         bottomPromptChip?.visibility = View.GONE
-        previewCardCarousel?.adapter = PreviewCardAdapter(ImmutableList.of()) { showSearchResults(it) }
+        previewCardCarousel?.adapter = ProductCardPreview(ImmutableList.of()) { showSearchResults(it) }
         previewCardCarousel?.clearOnScrollListeners()
         dotViewContainer?.removeAllViews()
         currentSelectedObjectIndex = 0
@@ -224,24 +225,23 @@ class DefaultDetectionActivity : AppCompatActivity(), View.OnClickListener {
         } else {
             searchedObjectMap.clear()
             for (i in objects.indices) {
-                searchEngine?.search(DetectedObjectInfo(objects[i], i, image)) { detectedObject, products ->
+                searchEngine?.search(DetectedInfo(objects[i], i, image)) { detectedObject, products ->
                     onSearchCompleted(detectedObject, products)
                 }
             }
         }
     }
 
-    private fun onSearchCompleted(detectedObject: DetectedObjectInfo, productList: List<Product>) {
+    private fun onSearchCompleted(detectedObject: DetectedInfo, productList: List<Product>) {
         searchedObjectMap[detectedObject.objectIndex] = SearchedObject(resources, detectedObject, productList)
         if (searchedObjectMap.size < detectedObjectNum) {
-            // Hold off showing the result until the search of all detected objects completes.
             return
         }
 
         showBottomPromptChip(getString(R.string.static_image_prompt_detected_results))
         loadingView?.visibility = View.GONE
         previewCardCarousel?.adapter =
-            PreviewCardAdapter(ImmutableList.copyOf(searchedObjectMap.values)) { showSearchResults(it) }
+            ProductCardPreview(ImmutableList.copyOf(searchedObjectMap.values)) { showSearchResults(it) }
         previewCardCarousel?.addOnScrollListener(
             object : RecyclerView.OnScrollListener() {
                 override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
@@ -273,13 +273,13 @@ class DefaultDetectionActivity : AppCompatActivity(), View.OnClickListener {
             }
 
             dotViewContainer?.addView(dotView)
-            val animatorSet = AnimatorInflater.loadAnimator(this, R.animator.static_image_dot_enter) as AnimatorSet
+            val animatorSet = AnimatorInflater.loadAnimator(this, R.animator.static_detection_animation) as AnimatorSet
             animatorSet.setTarget(dotView)
             animatorSet.start()
         }
     }
 
-    private fun createDotView(searchedObject: SearchedObject): StaticObjectDotView {
+    private fun createDotView(searchedObject: SearchedObject): DotView {
         val viewCoordinateScale: Float
         val horizontalGap: Float
         val verticalGap: Float
@@ -287,11 +287,11 @@ class DefaultDetectionActivity : AppCompatActivity(), View.OnClickListener {
         val inputBitmap = inputBitmap ?: throw NullPointerException()
         val inputImageViewRatio = inputImageView.width.toFloat() / inputImageView.height
         val inputBitmapRatio = inputBitmap.width.toFloat() / inputBitmap.height
-        if (inputBitmapRatio <= inputImageViewRatio) { // Image content fills height
+        if (inputBitmapRatio <= inputImageViewRatio) {
             viewCoordinateScale = inputImageView.height.toFloat() / inputBitmap.height
             horizontalGap = (inputImageView.width - inputBitmap.width * viewCoordinateScale) / 2
             verticalGap = 0f
-        } else { // Image content fills width
+        } else {
             viewCoordinateScale = inputImageView.width.toFloat() / inputBitmap.width
             horizontalGap = 0f
             verticalGap = (inputImageView.height - inputBitmap.height * viewCoordinateScale) / 2
@@ -305,7 +305,7 @@ class DefaultDetectionActivity : AppCompatActivity(), View.OnClickListener {
             boundingBox.bottom * viewCoordinateScale + verticalGap
         )
         val initialSelected = searchedObject.objectIndex == 0
-        val dotView = StaticObjectDotView(this, initialSelected)
+        val dotView = DotView(this, initialSelected)
         val layoutParams = FrameLayout.LayoutParams(dotViewSize, dotViewSize)
         val dotCenter = PointF(
             (boxInViewCoordinate.right + boxInViewCoordinate.left) / 2,
@@ -322,13 +322,13 @@ class DefaultDetectionActivity : AppCompatActivity(), View.OnClickListener {
     }
 
     private fun selectNewObject(objectIndex: Int) {
-        val dotViewToDeselect = dotViewContainer!!.getChildAt(currentSelectedObjectIndex) as StaticObjectDotView
-        dotViewToDeselect.playAnimationWithSelectedState(false)
+        val dotViewToDeselect = dotViewContainer!!.getChildAt(currentSelectedObjectIndex) as DotView
+        dotViewToDeselect.selectedAnimation(false)
 
         currentSelectedObjectIndex = objectIndex
 
-        val selectedDotView = dotViewContainer!!.getChildAt(currentSelectedObjectIndex) as StaticObjectDotView
-        selectedDotView.playAnimationWithSelectedState(true)
+        val selectedDotView = dotViewContainer!!.getChildAt(currentSelectedObjectIndex) as DotView
+        selectedDotView.selectedAnimation(true)
     }
 
     private fun showBottomPromptChip(message: String) {

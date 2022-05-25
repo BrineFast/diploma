@@ -24,7 +24,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(bundle)
 
         AppCompatDelegate.setCompatVectorFromResourcesEnabled(true)
-        setContentView(R.layout.activity_main)
+        setContentView(R.layout.home_screen)
         findViewById<RecyclerView>(R.id.mode_recycler_view).apply {
             setHasFixedSize(true)
             layoutManager = LinearLayoutManager(this@MainActivity)
@@ -34,17 +34,17 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (!Utils.allPermissionsGranted(this)) {
-            Utils.requestRuntimePermissions(this)
+        if (!Utils.permissionsGranted(this)) {
+            Utils.requestPermissions(this)
         }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (requestCode == Utils.REQUEST_CODE_PHOTO_LIBRARY &&
+        if (requestCode == 1 &&
             resultCode == Activity.RESULT_OK &&
             data != null
         ) {
-            val intent = Intent(this, DefaultDetectionActivity::class.java)
+            val intent = Intent(this, StaticDetectionActivity::class.java)
             intent.data = data.data
             startActivity(intent)
         } else {
@@ -72,17 +72,15 @@ class MainActivity : AppCompatActivity() {
         private inner class ModeItemViewHolder(view: View) : RecyclerView.ViewHolder(view) {
 
             private val titleView: TextView = view.findViewById(R.id.mode_title)
-            private val subtitleView: TextView = view.findViewById(R.id.mode_subtitle)
 
             fun bindDetectionMode(detectionMode: DetectionMode) {
                 titleView.setText(detectionMode.titleResId)
-                subtitleView.setText(detectionMode.subtitleResId)
                 itemView.setOnClickListener {
                     val activity = this@MainActivity
                     when (detectionMode) {
                         DetectionMode.REALTIME ->
                             activity.startActivity(Intent(activity, RealtimeDetectionActivity::class.java))
-                        DetectionMode.DEFAULT -> Utils.openImagePicker(activity)
+                        DetectionMode.DEFAULT -> Utils.openInternalStorage(activity)
                     }
                 }
             }

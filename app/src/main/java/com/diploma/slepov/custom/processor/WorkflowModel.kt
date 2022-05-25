@@ -5,16 +5,15 @@ import android.content.Context
 import androidx.annotation.MainThread
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
-import com.diploma.slepov.custom.view.objectdetection.DetectedObjectInfo
-import com.diploma.slepov.custom.view.productsearch.Product
+import com.diploma.slepov.custom.view.objectdetection.DetectedInfo
 import com.diploma.slepov.custom.view.productsearch.SearchedObject
 import java.util.HashSet
 
-/** View model for handling application workflow based on camera preview.  */
+/** Класс с описанием главных методов в жизненном цикле приложения **/
 class WorkflowModel(application: Application) : AndroidViewModel(application) {
 
-    val workflowState = MutableLiveData<WorkflowState>()
-    val objectToSearch = MutableLiveData<DetectedObjectInfo>()
+    val currentState = MutableLiveData<WorkflowState>()
+    val detectedObject = MutableLiveData<DetectedInfo>()
     val searchedObject = MutableLiveData<SearchedObject>()
 
     private val objectIdsToSearch = HashSet<Int>()
@@ -22,14 +21,12 @@ class WorkflowModel(application: Application) : AndroidViewModel(application) {
     var isCameraLive = false
         private set
 
-    private var confirmedObject: DetectedObjectInfo? = null
+    private var confirmedObject: DetectedInfo? = null
 
     private val context: Context
         get() = getApplication<Application>().applicationContext
 
-    /**
-     * State set of the application workflow.
-     */
+    /** Перечисление всех возможных состояние **/
     enum class WorkflowState {
         NOT_STARTED,
         DETECTING,
@@ -40,59 +37,62 @@ class WorkflowModel(application: Application) : AndroidViewModel(application) {
         SEARCHED
     }
 
+    /** Изменение состояния цикла в зависимости от текущей активности **/
     @MainThread
-    fun setWorkflowState(workflowState: WorkflowState) {
-        if (workflowState != WorkflowState.CONFIRMED &&
-            workflowState != WorkflowState.SEARCHING &&
-            workflowState != WorkflowState.SEARCHED
+    fun changeState(currentState: WorkflowState) {
+        if (currentState != WorkflowState.CONFIRMED &&
+            currentState != WorkflowState.SEARCHING &&
+            currentState != WorkflowState.SEARCHED
         ) {
             confirmedObject = null
         }
-        this.workflowState.value = workflowState
+        this.currentState.value = currentState
     }
 
+    /** Изменение состояния цикла в зависимости от текущей активности **/
     @MainThread
-    fun confirmingObject(confirmingObject: DetectedObjectInfo, progress: Float) {
-        val isConfirmed = progress.compareTo(1f) == 0
-        if (isConfirmed) {
+    fun confirmingObject(confirmingObject: DetectedInfo, progress: Float) {
+        val confirmed = progress.compareTo(1f) == 0
+        if (confirmed) {
             confirmedObject = confirmingObject
-            setWorkflowState(WorkflowState.SEARCHING)
-            triggerSearch(confirmingObject)
+            changeState(WorkflowState.SEARCHING)
+            startSearch(confirmingObject)
         } else {
-            setWorkflowState(WorkflowState.CONFIRMING)
+            changeState(WorkflowState.CONFIRMING)
         }
     }
 
-    private fun triggerSearch(detectedObject: DetectedObjectInfo) {
-        val objectId = detectedObject.objectId ?: throw NullPointerException()
+    /** Добавление найденных объектов в очередь поиска **/
+    private fun startSearch(searchedObject: DetectedInfo) {
+        val objectId = searchedObject.objectId ?: throw NullPointerException()
         if (objectIdsToSearch.contains(objectId)) {
-            // Already in searching.
             return
         }
 
         objectIdsToSearch.add(objectId)
-        objectToSearch.value = detectedObject
+        detectedObject.value = searchedObject
     }
 
+    /** Изменение состояния на включение камеры **/
     fun markCameraLive() {
         isCameraLive = true
         objectIdsToSearch.clear()
     }
 
+    /** Изменение состояния на отключение камеры **/
     fun markCameraFrozen() {
         isCameraLive = false
     }
 
-    fun onSearchCompleted(detectedObject: DetectedObjectInfo, products: List<Product>) {
-        val lConfirmedObject = confirmedObject
-        if (detectedObject != lConfirmedObject) {
-            // Drops the search result from the object that has lost focus.
+    /** Формирование списка найденных объектов **/
+    fun onSearchCompleted(detectedObject: DetectedInfo, products: List<Product>) {
+        val confirmed = confirmedObject
+        if (detectedObject != confirmed) {
             return
         }
 
         objectIdsToSearch.remove(detectedObject.objectId)
-        setWorkflowState(WorkflowState.SEARCHED)
-
-        searchedObject.value = SearchedObject(context.resources, lConfirmedObject, products)
+        changeState(WorkflowState.SEARCHED)
+        searchedObject.value = SearchedObject(context.resources, confirmed, products)
     }
 }

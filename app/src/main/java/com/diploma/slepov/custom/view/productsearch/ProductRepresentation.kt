@@ -9,12 +9,15 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.Adapter
 import com.diploma.slepov.custom.R
-import com.diploma.slepov.custom.view.productsearch.ProductAdapter.ProductViewHolder
+import com.diploma.slepov.custom.processor.ImageRetriever
+import com.diploma.slepov.custom.processor.Product
+import com.diploma.slepov.custom.view.productsearch.ProductRepresentation.ProductView
 
-/** Presents the list of product items from cloud product search.  */
-class ProductAdapter(private val productList: List<Product>) : Adapter<ProductViewHolder>() {
+/** Класс для репрезентации полученных из поиска объектов **/
+class ProductRepresentation(private val productList: List<Product>) : Adapter<ProductView>() {
 
-    class ProductViewHolder private constructor(view: View) : RecyclerView.ViewHolder(view) {
+    /** Вспомогательный класс для резепрезентации изображений **/
+    class ProductView private constructor(view: View) : RecyclerView.ViewHolder(view) {
 
         private val imageView: ImageView = view.findViewById(R.id.product_image)
         private val titleView: TextView = view.findViewById(R.id.product_title)
@@ -24,9 +27,9 @@ class ProductAdapter(private val productList: List<Product>) : Adapter<ProductVi
         fun bindProduct(product: Product) {
             imageView.setImageDrawable(null)
             if (!TextUtils.isEmpty(product.imageUrl)) {
-                ImageDownloadTask(imageView, imageSize).execute(product.imageUrl)
+                ImageRetriever(imageView, imageSize).execute(product.imageUrl)
             } else {
-                imageView.setImageResource(R.drawable.logo_google_cloud)
+                imageView.setImageResource(0)
             }
             titleView.text = product.title
             subtitleView.text = product.subtitle
@@ -34,14 +37,14 @@ class ProductAdapter(private val productList: List<Product>) : Adapter<ProductVi
 
         companion object {
             fun create(parent: ViewGroup) =
-                ProductViewHolder(LayoutInflater.from(parent.context).inflate(R.layout.product_item, parent, false))
+                ProductView(LayoutInflater.from(parent.context).inflate(R.layout.product_item, parent, false))
         }
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ProductViewHolder =
-        ProductViewHolder.create(parent)
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ProductView =
+        ProductView.create(parent)
 
-    override fun onBindViewHolder(holder: ProductViewHolder, position: Int) {
+    override fun onBindViewHolder(holder: ProductView, position: Int) {
         holder.bindProduct(productList[position])
     }
 

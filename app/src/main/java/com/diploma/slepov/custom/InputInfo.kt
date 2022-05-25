@@ -1,7 +1,7 @@
 package com.diploma.slepov.custom
 
 import android.graphics.Bitmap
-import com.diploma.slepov.custom.processor.FrameMetadata
+import com.diploma.slepov.custom.processor.ImageMeta
 import com.diploma.slepov.custom.view.Utils
 import java.nio.ByteBuffer
 
@@ -9,9 +9,10 @@ interface InputInfo {
     fun getBitmap(): Bitmap
 }
 
+/** Вспомогательный класс для конвертации полученного изображения в BitMap **/
 class CameraInputInfo(
     private val frameByteBuffer: ByteBuffer,
-    private val frameMetadata: FrameMetadata
+    private val imageMeta: ImageMeta
 ) : InputInfo {
 
     private var bitmap: Bitmap? = null
@@ -20,7 +21,7 @@ class CameraInputInfo(
     override fun getBitmap(): Bitmap {
         return bitmap ?: let {
             bitmap = Utils.convertToBitmap(
-                frameByteBuffer, frameMetadata.width, frameMetadata.height, frameMetadata.rotation
+                frameByteBuffer, imageMeta.width, imageMeta.height, imageMeta.rotation
             )
             bitmap!!
         }

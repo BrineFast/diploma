@@ -4,14 +4,15 @@ import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.Rect
 import com.diploma.slepov.custom.R
+import com.diploma.slepov.custom.processor.Product
 import com.diploma.slepov.custom.view.Utils
-import com.diploma.slepov.custom.view.objectdetection.DetectedObjectInfo
+import com.diploma.slepov.custom.view.objectdetection.DetectedInfo
 
-/** Hosts the detected object info and its search result.  */
+/** Класс, содержащий информацию о найденых объектах  */
 class SearchedObject(
-    resources: Resources,
-    private val detectedObject: DetectedObjectInfo,
-    val productList: List<Product>
+        resources: Resources,
+        private val detectedObject: DetectedInfo,
+        val productList: List<Product>
 ) {
 
     private val objectThumbnailCornerRadius: Int = resources.getDimensionPixelOffset(R.dimen.bounding_box_corner_radius)
@@ -25,7 +26,7 @@ class SearchedObject(
 
     @Synchronized
     fun getObjectThumbnail(): Bitmap = objectThumbnail ?: let {
-        Utils.getCornerRoundedBitmap(detectedObject.getBitmap(), objectThumbnailCornerRadius)
+        Utils.roundImageCorners(detectedObject.getBitmap(), objectThumbnailCornerRadius)
             .also { objectThumbnail = it }
     }
 }

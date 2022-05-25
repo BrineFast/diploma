@@ -7,8 +7,6 @@
   <dimen name="home_page_mode_item_title_size">16sp</dimen>
   <dimen name="home_page_mode_item_title_padding_top">16dp</dimen>
   <dimen name="home_page_mode_item_title_padding_bottom">8dp</dimen>
-  <dimen name="home_page_mode_item_subtitle_size">14sp</dimen>
-  <dimen name="home_page_mode_item_subtitle_padding_bottom">24dp</dimen>
   <dimen name="top_action_bar_padding_horizontal">8dp</dimen>
   <dimen name="top_action_bar_height">64dp</dimen>
   <dimen name="top_action_button_padding">12dp</dimen>

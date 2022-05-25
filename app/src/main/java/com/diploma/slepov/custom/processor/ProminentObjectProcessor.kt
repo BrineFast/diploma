@@ -3,15 +3,15 @@ package com.diploma.slepov.custom.processor
 import android.graphics.RectF
 import androidx.annotation.MainThread
 import com.google.android.gms.tasks.Task
-import com.diploma.slepov.custom.view.camera.CameraReticleAnimator
-import com.diploma.slepov.custom.view.camera.GraphicOverlay
+import com.diploma.slepov.custom.view.camera.RecitleAnimator
+import com.diploma.slepov.custom.view.camera.Overlay
 import com.diploma.slepov.custom.R
 import com.diploma.slepov.custom.processor.WorkflowModel.WorkflowState
 import com.google.mlkit.common.model.LocalModel
 import com.diploma.slepov.custom.InputInfo
 import com.diploma.slepov.custom.view.objectdetection.*
-import com.diploma.slepov.custom.view.objectdetection.ObjectConfirmationController
-import com.diploma.slepov.custom.view.objectdetection.ObjectGraphicInProminentMode
+import com.diploma.slepov.custom.view.objectdetection.ConfirmationController
+import com.diploma.slepov.custom.view.objectdetection.DetectionAreaGraphic
 import com.diploma.slepov.custom.view.objectdetection.ObjectReticleGraphic
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.objects.DetectedObject
@@ -23,42 +23,45 @@ import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions
 import java.io.IOException
 import java.util.ArrayList
 
-/** A processor to run object detector in prominent object only mode.  */
+/** Класс для запуска детектирования объектов **/
 class ProminentObjectProcessor(
-    graphicOverlay: GraphicOverlay,
-    private val workflowModel: WorkflowModel,
-    private val customModelPath: String? = null) :
-    FrameProcessorBase<List<DetectedObject>>() {
+    Overlay: Overlay,
+    private val workflow: WorkflowModel,
+    private val customModelPath: String? = null
+) :
+    ImageProcessorBase<List<DetectedObject>>() {
 
     private val detector: ObjectDetector
-    private val confirmationController: ObjectConfirmationController = ObjectConfirmationController(graphicOverlay)
-    private val cameraReticleAnimator: CameraReticleAnimator = CameraReticleAnimator(graphicOverlay)
-    private val reticleOuterRingRadius: Int = graphicOverlay
+    private val confirmationController: ConfirmationController = ConfirmationController(Overlay)
+    private val RecitleAnimator: RecitleAnimator = RecitleAnimator(Overlay)
+    private val reticleOuterRingRadius: Int = Overlay
         .resources
         .getDimensionPixelOffset(R.dimen.object_reticle_outer_ring_stroke_radius)
 
+    /** Конструктор с выбором модели для детектирования **/
     init {
         val options: ObjectDetectorOptionsBase
 
-        // Кастомная модель TF lite
         if (customModelPath != null) {
             val localModel = LocalModel.Builder()
                 .setAssetFilePath(customModelPath)
                 .build()
             options = CustomObjectDetectorOptions.Builder(localModel)
                 .setDetectorMode(ObjectDetectorOptions.STREAM_MODE)
-                .enableClassification() // Always enable classification for custom models
+                .enableClassification()
                 .build()
 
-        // Предобученная
         } else {
             options = ObjectDetectorOptions.Builder()
-                .setDetectorMode(ObjectDetectorOptions.STREAM_MODE).enableClassification().build()
+                .setDetectorMode(ObjectDetectorOptions.STREAM_MODE)
+                .enableClassification()
+                .build()
         }
 
         this.detector = ObjectDetection.getClient(options)
     }
 
+    /** Метод остановки детектирования **/
     override fun stop() {
         super.stop()
         try {
@@ -68,18 +71,19 @@ class ProminentObjectProcessor(
         }
     }
 
-    override fun detectInImage(image: InputImage): Task<List<DetectedObject>> {
-        return detector.process(image)
+
+    /** Метод детектирования объекта **/
+    override fun detectInImage(lastImage: InputImage): Task<List<DetectedObject>> {
+        return detector.process(lastImage)
     }
 
+    /** Метод с логикой, выполняемой при успешном детектировании объекта:
+     * 1) Отрисовка анимации и области детектирования
+     * 2) Отправка и поиск объекта на сервере **/
     @MainThread
-    override fun onSuccess(
-        inputInfo: InputInfo,
-        results: List<DetectedObject>,
-        graphicOverlay: GraphicOverlay
-    ) {
+    override fun onSuccess(inputInfo: InputInfo, results: List<DetectedObject>, Overlay: Overlay) {
         var objects = results
-        if (!workflowModel.isCameraLive) {
+        if (!workflow.isCameraLive) {
             return
         }
 
@@ -89,73 +93,68 @@ class ProminentObjectProcessor(
 
         val objectIndex = 0
         val hasValidObjects = objects.isNotEmpty() &&
-                (customModelPath == null || DetectedObjectInfo.hasValidLabels(objects[objectIndex]))
+                (customModelPath == null || DetectedInfo.hasValidLabels(objects[objectIndex]))
         if (!hasValidObjects) {
             confirmationController.reset()
-            workflowModel.setWorkflowState(WorkflowState.DETECTING)
+            workflow.changeState(WorkflowState.DETECTING)
         } else {
             val visionObject = objects[objectIndex]
-            if (objectBoxOverlapsConfirmationReticle(graphicOverlay, visionObject)) {
-                // User is confirming the object selection.
+            if (objectAreaOverlapping(Overlay, visionObject)) {
                 confirmationController.confirming(visionObject.trackingId)
-                workflowModel.confirmingObject(
-                    DetectedObjectInfo(visionObject, objectIndex, inputInfo), confirmationController.progress
+                workflow.confirmingObject(
+                    DetectedInfo(visionObject, objectIndex, inputInfo), confirmationController.detectionProgress
                 )
             } else {
-                // Object detected but user doesn't want to pick this one.
                 confirmationController.reset()
-                workflowModel.setWorkflowState(WorkflowState.DETECTED)
+                workflow.changeState(WorkflowState.DETECTED)
             }
         }
 
-        graphicOverlay.clear()
+        Overlay.clear()
         if (!hasValidObjects) {
-            graphicOverlay.add(ObjectReticleGraphic(graphicOverlay, cameraReticleAnimator))
-            cameraReticleAnimator.start()
+            Overlay.add(ObjectReticleGraphic(Overlay, RecitleAnimator))
+            RecitleAnimator.start()
         } else {
-            if (objectBoxOverlapsConfirmationReticle(graphicOverlay, objects[0])) {
-                // User is confirming the object selection.
-                cameraReticleAnimator.cancel()
-                graphicOverlay.add(
-                    ObjectGraphicInProminentMode(
-                        graphicOverlay, objects[0], confirmationController
+            if (objectAreaOverlapping(Overlay, objects[0])) {
+                RecitleAnimator.cancel()
+                Overlay.add(
+                    DetectionAreaGraphic(
+                        Overlay, objects[0], confirmationController
                     )
                 )
-                if (!confirmationController.isConfirmed) {
-                    // Shows a loading indicator to visualize the confirming progress if in auto search mode.
-                    graphicOverlay.add(ObjectConfirmationGraphic(graphicOverlay, confirmationController))
+                if (!confirmationController.confirmed) {
+                    Overlay.add(ConfirmationGraphic(Overlay, confirmationController))
                 }
             } else {
-                // Object is detected but the confirmation reticle is moved off the object box, which
-                // indicates user is not trying to pick this object.
-                graphicOverlay.add(
-                    ObjectGraphicInProminentMode(
-                        graphicOverlay, objects[0], confirmationController
+                Overlay.add(
+                    DetectionAreaGraphic(
+                        Overlay, objects[0], confirmationController
                     )
                 )
-                graphicOverlay.add(ObjectReticleGraphic(graphicOverlay, cameraReticleAnimator))
-                cameraReticleAnimator.start()
+                Overlay.add(ObjectReticleGraphic(Overlay, RecitleAnimator))
+                RecitleAnimator.start()
             }
         }
-        graphicOverlay.invalidate()
+        Overlay.invalidate()
     }
 
-    private fun objectBoxOverlapsConfirmationReticle(
-        graphicOverlay: GraphicOverlay,
-        visionObject: DetectedObject
-    ): Boolean {
-        val boxRect = graphicOverlay.translateRect(visionObject.boundingBox)
-        val reticleCenterX = graphicOverlay.width / 2f
-        val reticleCenterY = graphicOverlay.height / 2f
+
+    /** Отрисовка области детектируемого объекта в пересечении с индикатором детектирования **/
+    private fun objectAreaOverlapping(Overlay: Overlay, visionObject: DetectedObject): Boolean {
+        val boxRect = Overlay.translateRect(visionObject.boundingBox)
+        val reticleOX = Overlay.width / 2f
+        val reticleOY = Overlay.height / 2f
         val reticleRect = RectF(
-            reticleCenterX - reticleOuterRingRadius,
-            reticleCenterY - reticleOuterRingRadius,
-            reticleCenterX + reticleOuterRingRadius,
-            reticleCenterY + reticleOuterRingRadius
+            reticleOX - reticleOuterRingRadius,
+            reticleOY - reticleOuterRingRadius,
+            reticleOX + reticleOuterRingRadius,
+            reticleOY + reticleOuterRingRadius
         )
         return reticleRect.intersect(boxRect)
     }
 
+
+    /** Метод выхода при неудачном детектировании **/
     override fun onFailure(e: Exception) {
         return
     }
